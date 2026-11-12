@@ -42,8 +42,8 @@ logic was kept unchanged.
   transposition table is cleared every move, with
   repetition-contaminated nodes never stored.
 - Move generation is perft-verified (startpos depth 4 = 197,281;
-  Kiwipete depth 3 = 97,862; four more standard positions), and the
-  evaluation is checked for mirror symmetry.
+  Kiwipete depth 3 = 97,862), and the evaluation is checked for
+  mirror symmetry.
 
 ## How main.py is packed
 
@@ -53,17 +53,17 @@ The readable engine source is about 9.3 KB, too big for the cap, so
 1. The source is compressed with `lzma` (preset 9, XZ format).
 2. The bytes are mapped 1:1 to a latin-1 string, escaping only
    backslash, CR, NUL, and quotes that would close the literal.
-3. `main.py` is a small hand-written wrapper: a latin-1 coding
-   header, the payload in a triple-quoted literal assigned to `P`,
-   and one line that decodes and executes it:
+3. `main.py` is a wrapper: a latin-1 coding header, the payload
+   on a single line in a triple-quoted literal assigned to `P`,
+   and one line that decodes and runs it:
 
-   `exec(lzma.decompress(P.encode('latin-1'),format=lzma.FORMAT_XZ))`
+   `exec(lzma.decompress(P.encode("latin-1"),format=lzma.FORMAT_XZ))`
 
 The payload decompresses back to the engine source byte for byte;
 that identity, perft, and determinism across fresh processes are
 re-verified for every shipped build.
 
-Final sizes: `main.py` 4,074 bytes (cap 4,096); tree 8,180 bytes
+Final sizes: `main.py` 4,093 bytes (cap 4,096); tree 8,163 bytes
 (cap 8,192).
 
 ## License
