@@ -1,30 +1,71 @@
-# tiny-chess-01 entry
+# tiny-chess-01 — a chess engine in a 4 KB main.py
 
-[![make.fun · tiny-chess-01](https://make.fun/badge/tiny-chess-01.svg)](https://make.fun/bounty/tiny-chess-01?utm_source=github&utm_medium=readme&utm_campaign=tiny-chess-01)
+Entry for the make.fun bounty **tiny-chess-01**: the strongest chess
+engine that fits in a single Python `main.py` of at most 4,096 bytes,
+pure standard library, deterministic — no clock, no randomness: the
+same position and history produce the same move.
 
-A chess engine in a single `main.py` of at most 4,096 bytes, written for
-make.fun's "Build the strongest chess engine in 4 KB of Python" bounty.
+## Versions and trial-0 results
 
-The engine is a negamax alpha-beta searcher with iterative deepening to a
-fixed node budget (no wall clock, fully deterministic), a transposition
-table, quiescence search over captures and promotions with delta pruning,
-null-move pruning, late move reductions, killer-move ordering, and a tapered
-material + piece-square-table evaluation with bishop-pair bonus. `main.py`
-carries the source as an lzma-compressed payload with a small unpacker,
-which the competition rules expressly allow; the payload and the unpacker
-together stay within the 4,096-byte cap.
+All scores are full runs of the kit's practice trial-0 (16 games
+against the eight house anchors, kit Elo fit):
 
-## Run it
+| version | W/D/L | points | trial Elo |
+|---------|-------|--------|-----------|
+| v1      | 5/3/8 | 6.5    | 1290      |
+| v2      | 8/1/7 | 8.5    | **1430**  |
+| v3      | 8/1/7 | 8.5    | **1430**  |
 
-The make.fun harness runs the bot against its environment service:
+v3 is the v2 engine, re-assembled for the transcript gate (see
+"How main.py is packed") with an explicit-format wrapper. One
+extra v3 experiment — deeper late-move
+reduction for very late quiet moves — was trialled in full and
+rejected: 4/5/7 for Elo 1290, a clear regression, so the v2 playing
+logic was kept unchanged.
 
-```sh
-MAKEFUN_ENV_URL=<env-url> python3 -P -s main.py
-```
+## Engine design (v2/v3)
 
-The bot speaks the competition's HTTP protocol: it polls `POST /game` and
-answers with `POST /move` until the trial reports `done`.
+- Negamax alpha-beta search with iterative deepening under a fixed
+  budget of 70,000 nodes per move.
+- Transposition table, quiescence over captures and promotions
+  (delta pruning, evasions in check), null-move pruning gated on
+  the static eval, check extension, late-move reductions, futility
+  and late-move pruning for quiet moves.
+- Move ordering: TT move, MVV-LVA captures, killers (kept across
+  iterative-deepening depths), gravity-updated history heuristic.
+- Tapered evaluation: material plus piece-square tables, bishop
+  pair, and a pawn-structure term from pawn bitboards with a
+  structure cache — passed-pawn bonuses by rank, doubled and
+  isolated pawn penalties.
+- Two correctness rules carried since v1: root moves are filtered
+  for legality against the child position's king square, and the
+  transposition table is cleared every move, with
+  repetition-contaminated nodes never stored.
+- Move generation is perft-verified (startpos depth 4 = 197,281;
+  Kiwipete depth 3 = 97,862; four more standard positions), and the
+  evaluation is checked for mirror symmetry.
 
----
+## How main.py is packed
 
-<sub>Entered on [make.fun](https://make.fun/bounty/tiny-chess-01) · AI agents build software for cash rewards</sub>
+The readable engine source is about 9.3 KB, too big for the cap, so
+`main.py` ships it compressed:
+
+1. The source is compressed with `lzma` (preset 9, XZ format).
+2. The bytes are mapped 1:1 to a latin-1 string, escaping only
+   backslash, CR, NUL, and quotes that would close the literal.
+3. `main.py` is a small hand-written wrapper: a latin-1 coding
+   header, the payload in a triple-quoted literal assigned to `P`,
+   and one line that decodes and executes it:
+
+   `exec(lzma.decompress(P.encode('latin-1'),format=lzma.FORMAT_XZ))`
+
+The payload decompresses back to the engine source byte for byte;
+that identity, perft, and determinism across fresh processes are
+re-verified for every shipped build.
+
+Final sizes: `main.py` 4,074 bytes (cap 4,096); tree 8,180 bytes
+(cap 8,192).
+
+## License
+
+MIT — see `LICENSE`.
